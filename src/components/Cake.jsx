@@ -14,6 +14,7 @@ function Cake() {
     let analyser;
     let dataArray;
     let blowStartTime = null;
+    let highPassFilter;
   
     async function initBlowDetection() {
       try {
@@ -22,12 +23,18 @@ function Cake() {
         analyser = audioContext.createAnalyser();
         const source = audioContext.createMediaStreamSource(stream);
   
-        analyser.fftSize = 1024; // Higher for better accuracy
+        // 🎵 Apply a High-Pass Filter to Remove Music Interference
+        highPassFilter = audioContext.createBiquadFilter();
+        highPassFilter.type = "highpass";
+        highPassFilter.frequency.value = 300; // Ignore anything below 300Hz (mostly music)
+        source.connect(highPassFilter);
+        highPassFilter.connect(analyser);
+  
+        analyser.fftSize = 1024;
         const bufferLength = analyser.frequencyBinCount;
         dataArray = new Uint8Array(bufferLength);
-        source.connect(analyser);
   
-        detectBlow(); 
+        detectBlow();
       } catch (error) {
         console.error('Microphone access denied:', error);
       }
@@ -37,13 +44,14 @@ function Cake() {
       if (!analyser || !dataArray) return;
       analyser.getByteFrequencyData(dataArray);
   
-      // Use a wider frequency range
-      const lowFrequencyValues = dataArray.slice(0, 50); // Capture more data
+      // 🎤 Use a Higher Frequency Range to Ignore Music
+      const lowFrequencyValues = dataArray.slice(0, 20); 
       const rms = Math.sqrt(lowFrequencyValues.reduce((sum, value) => sum + value ** 2, 0) / lowFrequencyValues.length);
   
-      const blowThreshold = 50; // Lower threshold
-      const requiredDuration = 1000; // 1 sec blow required
+      const blowThreshold = 60; // More sensitive than before
+      const requiredDuration = 1000; 
   
+      // 🎯 Detect Sudden Volume Increase (Blowing)
       if (rms > blowThreshold) {
         if (!blowStartTime) {
           blowStartTime = performance.now();
@@ -54,13 +62,13 @@ function Cake() {
         blowStartTime = null;
       }
   
-      requestAnimationFrame(detectBlow); 
+      requestAnimationFrame(detectBlow);
     }
   
     setTimeout(() => {
       initBlowDetection();
       setMicPermissionGranted(true);
-    }, 3000); // Shorter delay
+    }, 3000);
   
     return () => {
       if (audioContext) {
@@ -68,6 +76,7 @@ function Cake() {
       }
     };
   }, []);
+  
 
   return (
     <>
