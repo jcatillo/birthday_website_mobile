@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import "../assets/css/cake.css";
 import { CakeSVG, confetti } from '../assets';
 import { motion } from "framer-motion";
@@ -8,6 +8,7 @@ import bgMusic from "../assets/audio/happy-birthday.mp3"; // Import your audio f
 function Cake() {
   const [candlesBlownOut, setCandlesBlownOut] = useState(false);
   const [micPermissionGranted, setMicPermissionGranted] = useState(false);
+  const audioRef = useRef(null); // Ref for background music control
 
   useEffect(() => {
     let audioContext;
@@ -33,6 +34,11 @@ function Cake() {
         analyser.fftSize = 1024;
         const bufferLength = analyser.frequencyBinCount;
         dataArray = new Uint8Array(bufferLength);
+
+        // 🎚️ Lower Music Volume When Listening for Blow
+        if (audioRef.current) {
+          audioRef.current.volume = 0.2; // Reduce volume temporarily
+        }
   
         detectBlow();
       } catch (error) {
@@ -57,6 +63,11 @@ function Cake() {
           blowStartTime = performance.now();
         } else if (performance.now() - blowStartTime > requiredDuration) {
           setCandlesBlownOut(true);
+
+          // 🎚️ Restore Music Volume After Detection
+          if (audioRef.current) {
+            audioRef.current.volume = 1.0; // Reset volume
+          }
         }
       } else {
         blowStartTime = null;
@@ -81,7 +92,7 @@ function Cake() {
   return (
     <>
       {/* Background Music */}
-      <audio src={bgMusic} autoPlay loop />
+      <audio ref={audioRef} src={bgMusic} autoPlay loop />
 
       <div className="bg-black/80 h-screen w-screen flex items-center justify-center overflow-hidden relative">
         {candlesBlownOut && (
