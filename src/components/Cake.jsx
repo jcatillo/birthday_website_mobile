@@ -9,55 +9,58 @@ function Cake() {
   const [candlesBlownOut, setCandlesBlownOut] = useState(false);
   const [micPermissionGranted, setMicPermissionGranted] = useState(false);
   const audioRef = useRef(null); // Ref for background music control
+  const micRef = useRef(null); // Keep track of microphone status
 
   useEffect(() => {
     let audioContext;
     let analyser;
     let dataArray;
     let blowStartTime = null;
-    let highPassFilter;
-  
+    let bandPassFilter;
+
     async function initBlowDetection() {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         audioContext = new (window.AudioContext || window.AudioContext)();
         analyser = audioContext.createAnalyser();
         const source = audioContext.createMediaStreamSource(stream);
-  
-        // 🎵 Apply a High-Pass Filter to Remove Music Interference
-        highPassFilter = audioContext.createBiquadFilter();
-        highPassFilter.type = "highpass";
-        highPassFilter.frequency.value = 300; // Ignore anything below 300Hz (mostly music)
-        source.connect(highPassFilter);
-        highPassFilter.connect(analyser);
-  
+
+        // 🎵 Band-Pass Filter (Focus on Blowing Sound Range: 300Hz - 800Hz)
+        bandPassFilter = audioContext.createBiquadFilter();
+        bandPassFilter.type = "bandpass";
+        bandPassFilter.frequency.value = 500; // Center frequency
+        bandPassFilter.Q.value = 1.5; // Bandwidth tightness
+        source.connect(bandPassFilter);
+        bandPassFilter.connect(analyser);
+
         analyser.fftSize = 1024;
         const bufferLength = analyser.frequencyBinCount;
         dataArray = new Uint8Array(bufferLength);
 
-        // 🎚️ Lower Music Volume When Listening for Blow
+        micRef.current = true;
+
+        // 🎚️ Lower Music Volume Only While Listening
         if (audioRef.current) {
-          audioRef.current.volume = 0.2; // Reduce volume temporarily
+          audioRef.current.volume = 0.1;
         }
-  
+
         detectBlow();
       } catch (error) {
         console.error('Microphone access denied:', error);
       }
     }
-  
+
     function detectBlow() {
       if (!analyser || !dataArray) return;
       analyser.getByteFrequencyData(dataArray);
-  
-      // 🎤 Use a Higher Frequency Range to Ignore Music
-      const lowFrequencyValues = dataArray.slice(0, 20); 
-      const rms = Math.sqrt(lowFrequencyValues.reduce((sum, value) => sum + value ** 2, 0) / lowFrequencyValues.length);
-  
-      const blowThreshold = 75; // More sensitive than before
+
+      // 🎤 Focus on 300Hz - 800Hz Range (Eliminating Background Music Interference)
+      const blowFrequencyValues = dataArray.slice(10, 40); 
+      const rms = Math.sqrt(blowFrequencyValues.reduce((sum, value) => sum + value ** 2, 0) / blowFrequencyValues.length);
+      
+      const blowThreshold = 50; // Adjusted to be more precise
       const requiredDuration = 1000; 
-  
-      // 🎯 Detect Sudden Volume Increase (Blowing)
+
       if (rms > blowThreshold) {
         if (!blowStartTime) {
           blowStartTime = performance.now();
@@ -66,28 +69,33 @@ function Cake() {
 
           // 🎚️ Restore Music Volume After Detection
           if (audioRef.current) {
-            audioRef.current.volume = 1.0; // Reset volume
+            audioRef.current.volume = 1.0;
           }
         }
       } else {
         blowStartTime = null;
       }
-  
-      requestAnimationFrame(detectBlow);
+
+      if (!candlesBlownOut) {
+        requestAnimationFrame(detectBlow);
+      }
     }
-  
+
+    // 🎤 Delay Mic Activation Until the First Loop Ends
     setTimeout(() => {
-      initBlowDetection();
-      setMicPermissionGranted(true);
-    }, 3000);
-  
+      if (!candlesBlownOut) {
+        initBlowDetection();
+        setMicPermissionGranted(true);
+      }
+    }, 5000); // Delay mic activation
+
     return () => {
       if (audioContext) {
         audioContext.close();
       }
+      micRef.current = false;
     };
-  }, []);
-  
+  }, [candlesBlownOut]);
 
   return (
     <>
