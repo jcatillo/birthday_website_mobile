@@ -10,5 +10,6 @@ export default defineConfig({
 
     port: 3000 // Specify the desired port
 
-  }
+  },
+  assetsInclude: ['**/*.JPG', '**/*.jpg'],
 })
