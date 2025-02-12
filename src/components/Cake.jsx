@@ -7,9 +7,9 @@ import bgMusic from "../assets/audio/happy-birthday.mp3"; // Import your audio f
 
 function Cake() {
   const [candlesBlownOut, setCandlesBlownOut] = useState(false);
-  const [micPermissionGranted, setMicPermissionGranted] = useState(false);
-  const audioRef = useRef(null); // Ref for background music control
-  const micRef = useRef(null); // Keep track of microphone status
+  const [micActive, setMicActive] = useState(false);
+  const audioRef = useRef(null);
+  const micRef = useRef(null);
 
   useEffect(() => {
     let audioContext;
@@ -25,21 +25,20 @@ function Cake() {
         analyser = audioContext.createAnalyser();
         const source = audioContext.createMediaStreamSource(stream);
 
-        // 🎵 Band-Pass Filter (Focus on Blowing Sound Range: 300Hz - 800Hz)
+        // 🎵 Band-Pass Filter to Isolate Blowing Sound (300Hz - 800Hz)
         bandPassFilter = audioContext.createBiquadFilter();
         bandPassFilter.type = "bandpass";
-        bandPassFilter.frequency.value = 500; // Center frequency
-        bandPassFilter.Q.value = 1.5; // Bandwidth tightness
+        bandPassFilter.frequency.value = 500;
+        bandPassFilter.Q.value = 1.5;
         source.connect(bandPassFilter);
         bandPassFilter.connect(analyser);
 
         analyser.fftSize = 1024;
-        const bufferLength = analyser.frequencyBinCount;
-        dataArray = new Uint8Array(bufferLength);
+        dataArray = new Uint8Array(analyser.frequencyBinCount);
 
         micRef.current = true;
 
-        // 🎚️ Lower Music Volume Only While Listening
+        // 🎚️ Lower Music Volume While Mic is Active
         if (audioRef.current) {
           audioRef.current.volume = 0.1;
         }
@@ -54,12 +53,12 @@ function Cake() {
       if (!analyser || !dataArray) return;
       analyser.getByteFrequencyData(dataArray);
 
-      // 🎤 Focus on 300Hz - 800Hz Range (Eliminating Background Music Interference)
+      // 🎤 Focus on 300Hz - 800Hz Range (Eliminating Music)
       const blowFrequencyValues = dataArray.slice(10, 40); 
       const rms = Math.sqrt(blowFrequencyValues.reduce((sum, value) => sum + value ** 2, 0) / blowFrequencyValues.length);
       
-      const blowThreshold = 50; // Adjusted to be more precise
-      const requiredDuration = 1000; 
+      const blowThreshold = 50;
+      const requiredDuration = 1000;
 
       if (rms > blowThreshold) {
         if (!blowStartTime) {
@@ -81,13 +80,16 @@ function Cake() {
       }
     }
 
-    // 🎤 Delay Mic Activation Until the First Loop Ends
-    setTimeout(() => {
-      if (!candlesBlownOut) {
+    function handleMusicEnd() {
+      if (!micActive) {
+        setMicActive(true);
         initBlowDetection();
-        setMicPermissionGranted(true);
       }
-    }, 5000); // Delay mic activation
+    }
+
+    if (audioRef.current) {
+      audioRef.current.onended = handleMusicEnd; // 🎵 Start Mic After First Loop Ends
+    }
 
     return () => {
       if (audioContext) {
@@ -100,7 +102,7 @@ function Cake() {
   return (
     <>
       {/* Background Music */}
-      <audio ref={audioRef} src={bgMusic} autoPlay loop />
+      <audio ref={audioRef} src={bgMusic} autoPlay onEnded={() => handleMusicEnd()} />
 
       <div className="bg-black/80 h-screen w-screen flex items-center justify-center overflow-hidden relative">
         {candlesBlownOut && (
