@@ -54,7 +54,7 @@ function Cake() {
       const lowFrequencyValues = dataArray.slice(0, 20); 
       const rms = Math.sqrt(lowFrequencyValues.reduce((sum, value) => sum + value ** 2, 0) / lowFrequencyValues.length);
   
-      const blowThreshold = 50; // More sensitive than before
+      const blowThreshold = 75; // More sensitive than before
       const requiredDuration = 1000; 
   
       // 🎯 Detect Sudden Volume Increase (Blowing)
